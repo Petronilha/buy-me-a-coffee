@@ -12,7 +12,7 @@ export default function App() {
 	const [memos, setMemos] = useState([]);
 
 	// ATENÇÃO: Troque pelo endereço que apareceu no seu terminal quando fez o deploy localhost
-	const enderecoContrato = "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
+	const enderecoContrato = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 	const contractABI = abi.abi;
 
 	// 2. Lógica de Conexão (Aqui estava faltando!)
