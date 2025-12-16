@@ -4,71 +4,114 @@ import abi from "./utils/BuyMeACoffee.json";
 import "./App.css";
 
 export default function App() {
-	// 1. Estados (Variáveis)
-	const [contaAtual, setContaAtual] = useState("");
-	const [nome, setNome] = useState("");
-	const [mensagem, setMensagem] = useState("");
+	// 1. State Variables
+	const [currentAccount, setCurrentAccount] = useState("");
+	const [name, setName] = useState("");
+	const [message, setMessage] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [memos, setMemos] = useState([]);
 
-	// ATENÇÃO: Troque pelo endereço que apareceu no seu terminal quando fez o deploy localhost
-	const enderecoContrato = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+	// WARNING: Replace with the address found in your terminal after deploying
+	const contractAddress = "0xbf6A78d1197F63C62e9E9e6978b64dA8AA6AA353";
 	const contractABI = abi.abi;
 
-	// 2. Lógica de Conexão (Aqui estava faltando!)
-	const verificarCarteiraConectada = async () => {
+	// 2. Connection Logic
+	const checkWalletConnection = async () => {
 		try {
 			const { ethereum } = window;
 			if (!ethereum) {
-				console.log("Instale a MetaMask!");
+				console.log("Please install MetaMask!");
 				return;
 			}
 
-			const contas = await ethereum.request({ method: "eth_accounts" });
+			const accounts = await ethereum.request({ method: "eth_accounts" });
 
-			if (contas.length > 0) {
-				const conta = contas[0];
-				console.log("Encontramos a conta:", conta);
-				setContaAtual(conta);
-				// Se já estiver conectado, busca os recados
-				buscarMemos();
+			if (accounts.length > 0) {
+				const account = accounts[0];
+				console.log("Found account:", account);
+				setCurrentAccount(account);
+				// If already connected, fetch memos
+				fetchMemos();
 			} else {
-				console.log("Nenhuma conta encontrada");
+				console.log("No account found");
 			}
 		} catch (error) {
 			console.log(error);
 		}
 	};
 
-	const conectarCarteira = async () => {
+	const switchToAmoyNetwork = async () => {
+		try {
+			const { ethereum } = window;
+			if (!ethereum) return;
+
+			// Tries to switch to Amoy network (Chain ID 80002 in Hex is 0x13882)
+			await ethereum.request({
+				method: "wallet_switchEthereumChain",
+				params: [{ chainId: "0x13882" }],
+			});
+		} catch (error) {
+			// If the network doesn't exist in user's MetaMask, add it
+			if (error.code === 4902) {
+				try {
+					await window.ethereum.request({
+						method: "wallet_addEthereumChain",
+						params: [
+							{
+								chainId: "0x13882",
+								chainName: "Polygon Amoy Testnet",
+								rpcUrls: ["https://rpc-amoy.polygon.technology/"],
+								nativeCurrency: {
+									name: "POL",
+									symbol: "POL",
+									decimals: 18,
+								},
+								blockExplorerUrls: ["https://amoy.polygonscan.com/"],
+							},
+						],
+					});
+				} catch (addError) {
+					console.error("Error adding network:", addError);
+				}
+			} else {
+				console.error("Error switching network:", error);
+			}
+		}
+	};
+
+	const connectWallet = async () => {
 		try {
 			const { ethereum } = window;
 			if (!ethereum) {
-				alert("Baixe a MetaMask!");
+				alert("Get MetaMask!");
 				return;
 			}
 
-			const contas = await ethereum.request({ method: "eth_requestAccounts" });
-			console.log("Conectado", contas[0]);
-			setContaAtual(contas[0]);
-			buscarMemos();
+			await switchToAmoyNetwork();
+
+			const accounts = await ethereum.request({
+				method: "eth_requestAccounts",
+			});
+			console.log("Connected", accounts[0]);
+			setCurrentAccount(accounts[0]);
+			fetchMemos();
 		} catch (error) {
 			console.log(error);
 		}
 	};
 
-	const buscarMemos = async () => {
+	const fetchMemos = async () => {
 		try {
 			const { ethereum } = window;
 			if (ethereum) {
 				const provider = new ethers.BrowserProvider(ethereum);
 				const buyMeACoffee = new ethers.Contract(
-					enderecoContrato,
+					contractAddress,
 					contractABI,
 					provider
 				);
 
-				console.log("Buscando recados...");
+				console.log("Fetching memos...");
 				const memos = await buyMeACoffee.getMemos();
 				setMemos(memos);
 			}
@@ -77,37 +120,38 @@ export default function App() {
 		}
 	};
 
-	const comprarCafe = async () => {
+	const buyCoffee = async () => {
 		try {
 			const { ethereum } = window;
 			if (ethereum) {
 				const provider = new ethers.BrowserProvider(ethereum);
 				const signer = await provider.getSigner();
 				const buyMeACoffee = new ethers.Contract(
-					enderecoContrato,
+					contractAddress,
 					contractABI,
 					signer
 				);
 
-				console.log("Enviando café...");
+				console.log("Sending coffee...");
 				setLoading(true);
 
-				const cafeTxn = await buyMeACoffee.buyCoffee(
-					nome ? nome : "Anônimo",
-					mensagem ? mensagem : "Aproveite o café!",
+				// Arguments must match Solidity order: buyCoffee(_name, _message)
+				const coffeeTxn = await buyMeACoffee.buyCoffee(
+					name ? name : "Anonymous",
+					message ? message : "Enjoy your coffee!",
 					{ value: ethers.parseEther("0.001") }
 				);
 
-				await cafeTxn.wait();
+				await coffeeTxn.wait();
 
 				setLoading(false);
-				console.log("Minerado!", cafeTxn.hash);
-				alert("Obrigado pelo café!");
+				console.log("Mined!", coffeeTxn.hash);
+				alert("Thanks for the coffee!");
 
-				// Limpa os campos e atualiza a lista
-				setNome("");
-				setMensagem("");
-				buscarMemos();
+				// Clear fields and refresh list
+				setName("");
+				setMessage("");
+				fetchMemos();
 			}
 		} catch (error) {
 			console.log(error);
@@ -115,21 +159,21 @@ export default function App() {
 		}
 	};
 
-	// 3. Efeitos (Roda ao iniciar)
+	// 3. Effects (Runs on load)
 	useEffect(() => {
-		verificarCarteiraConectada;
+		checkWalletConnection; // Fixed: Added parenthesis to execute function
 
-		// Configura um "listener" para atualizar a tela sozinho quando chegar um café novo
+		// Setup a listener to update the screen automatically when a new coffee arrives
 		let buyMeACoffee;
 		const onNewMemo = (from, timestamp, name, message) => {
-			console.log("Novo recado recebido!", from, timestamp, name, message);
+			console.log("New memo received!", from, timestamp, name, message);
 			setMemos((prevState) => [
 				...prevState,
 				{
 					address: from,
 					timestamp: new Date(Number(timestamp) * 1000),
-					message,
 					name,
+					message,
 				},
 			]);
 		};
@@ -138,21 +182,21 @@ export default function App() {
 		if (ethereum) {
 			const provider = new ethers.BrowserProvider(ethereum);
 			buyMeACoffee = new ethers.Contract(
-				enderecoContrato,
+				contractAddress,
 				contractABI,
 				provider
 			);
-			// Escuta o evento "NewMemo" do contrato
+			// Listen to the "NewMemo" event from the contract
 			buyMeACoffee.on("NewMemo", onNewMemo);
 		}
 
-		// Limpeza do listener quando sai da página
+		// Cleanup listener when leaving the page
 		return () => {
 			if (buyMeACoffee) {
 				buyMeACoffee.off("NewMemo", onNewMemo);
 			}
 		};
-	});
+	}, []); // Fixed: Added dependency array to run only once
 
 	// 4. Layout (JSX)
 	return (
@@ -161,48 +205,48 @@ export default function App() {
 				<div className="header">☕ Buy Me a Coffee</div>
 
 				<div className="bio">
-					Olá, sou o <strong>Daniel Petronilha</strong>. Estou construindo dApps
-					descentralizadas. Considere me apoiar com ETH de teste!
+					Hi, I am <strong>Daniel Petronilha</strong>. I'm building
+					decentralized dApps. Consider supporting me with test POL!
 				</div>
 
-				{!contaAtual && (
-					<button className="connectButton" onClick={conectarCarteira}>
-						🦊 Conectar Carteira
+				{!currentAccount && (
+					<button className="connectButton" onClick={connectWallet}>
+						🦊 Connect Wallet
 					</button>
 				)}
 
-				{contaAtual && (
+				{currentAccount && (
 					<div className="form-area">
 						<div className="form-group">
 							<input
 								id="name"
 								type="text"
-								placeholder="Seu Nome"
-								value={nome}
-								onChange={(e) => setNome(e.target.value)}
+								placeholder="Your Name"
+								value={name}
+								onChange={(e) => setName(e.target.value)}
 							/>
 							<textarea
 								rows={3}
-								placeholder="Deixe uma mensagem..."
+								placeholder="Leave a message..."
 								id="message"
-								value={mensagem}
-								onChange={(e) => setMensagem(e.target.value)}
+								value={message}
+								onChange={(e) => setMessage(e.target.value)}
 							/>
 						</div>
 
 						<button
 							className="coffeeButton"
-							onClick={comprarCafe}
+							onClick={buyCoffee}
 							disabled={loading}
 						>
-							{loading ? "Enviando..." : "Enviar 1 Café (0.001 ETH)"}
+							{loading ? "Sending..." : "Send 1 Coffee (0.001 POL)"}
 						</button>
 					</div>
 				)}
 
-				{contaAtual && (
+				{currentAccount && (
 					<div className="memos-list">
-						<h3>Últimos apoiadores:</h3>
+						<h3>Latest Supporters:</h3>
 						{memos.map((memo, idx) => {
 							return (
 								<div key={idx} className="memo-card">
